@@ -26,7 +26,15 @@ table{width:100%;border-collapse:collapse}
 td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
 th{color:var(--mut);font-weight:600;font-size:14px}
 td.n,th.n{text-align:right}
-.re{width:76px;text-align:right;padding:6px 8px}
+.re{width:60px;text-align:center;padding:6px 4px}
+.grp{border-top:1px solid var(--line);padding:8px 0}.grp:first-child{border-top:0}
+.gh{display:flex;align-items:center;gap:6px}
+.grip{cursor:grab;touch-action:none;user-select:none;padding:4px 8px;color:var(--mut);font-size:20px;line-height:1}
+.grp.drag{background:var(--bg);opacity:.7}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 38px}
+.chip{display:flex;align-items:center}
+.sub{margin:2px 0 0 38px;font-size:13px;color:var(--mut);opacity:.75}
+.pl{flex:1;font-weight:600;cursor:pointer}
 .x{border:0;background:none;color:var(--mut);cursor:pointer;font-size:18px}
 .mut{color:var(--mut);font-size:14px}
 #now{border-left:4px solid var(--acc);padding:2px 10px;margin-bottom:8px}
@@ -66,7 +74,14 @@ svg{width:100%;height:auto;display:block}
 </div>
 
 <h2>Today</h2>
-<div class="box"><table id="today"></table></div>
+<div class="box" id="today"></div>
+
+<h2>Plan</h2>
+<div class="box">
+<div class="row" style="justify-content:space-between"><b id="pYM"></b><input id="pDate" type="date" aria-label="Plan date" style="flex:none;width:auto"></div>
+<div id="plan"></div>
+<div class="row"><input id="pAdd" list="exl" placeholder="Add exercise to plan"><button class="b alt" id="pBtn">Add</button></div>
+</div>
 </section>
 
 <section id="hist">
@@ -108,7 +123,7 @@ svg{width:100%;height:auto;display:block}
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 let S;try{S=JSON.parse(localStorage.getItem('wl1'))}catch(e){}
-S=S&&S.sets?S:{sets:[],bw:[]};S.runs=S.runs||[];
+S=S&&S.sets?S:{sets:[],bw:[]};S.runs=S.runs||[];S.plan=S.plan||[];
 const save=()=>{try{localStorage.setItem('wl1',JSON.stringify(S))}catch(e){}};
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const today=()=>new Date().toLocaleDateString('sv');
@@ -142,7 +157,7 @@ $('#logrs').onclick=()=>{const r=$('#reps').value;if(r===''||r<0){$('#reps').foc
 $$('[data-w]').forEach(b=>b.onclick=()=>{const k=$('#wu').value=='lb'?2:1;$('#w').value=Math.max(0,(parseFloat($('#w').value)||0)+ +b.dataset.w*k);$('#bwm').checked=false});
 $('#quick').innerHTML='<span class="mut">Quick log:</span>'+[3,5,8,10,12,15].map(n=>`<button class="b alt" data-q="${n}">${n}</button>`).join('');
 $$('[data-q]').forEach(b=>b.onclick=()=>{if(logSet(b.dataset.q))start()});
-$('#ex').onchange=()=>{const l=[...S.sets].reverse().find(s=>s.ex.toLowerCase()==$('#ex').value.trim().toLowerCase());if(l){$('#w').value=sv(l)||'';$('#wu').value=l.u||'kg';$('#bwm').checked=!!l.bwm}};
+$('#ex').onchange=()=>prefill($('#ex').value);
 
 /* ---------- helpers ---------- */
 function bwAt(date){if(!S.bw.length)return null;const b=[...S.bw].sort((a,c)=>a.date<c.date?-1:1);let r=b[0].kg;for(const e of b){if(e.date<=date)r=e.kg}return r}
@@ -158,11 +173,13 @@ const inPer=(s,p)=>{if(p=='all')return true;if(p=='month')return s.date.slice(0,
 /* ---------- render ---------- */
 function render(){renderNow();bkInfo();
  const exs=[...new Set(S.sets.map(s=>s.ex))].sort();
- $('#exl').innerHTML=exs.map(e=>`<option value="${esc(e)}">`).join('');
- const t=S.sets.filter(s=>s.date==today());
- $('#today').innerHTML=t.length?'<tr><th>Exercise</th><th class="n">Reps</th><th></th></tr>'+t.map(s=>`<tr><td>${esc(s.ex)}${wpart(s)}</td><td class="n"><input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps"></td><td class="n"><button class="x" data-del="${s.id}" aria-label="Delete set">×</button></td></tr>`).join(''):'<tr><td class="mut">No sets yet today. Pick an exercise and log your first set.</td></tr>';
+ $('#exl').innerHTML=[...new Set([...exs,...S.plan.map(p=>p.ex)])].sort().map(e=>`<option value="${esc(e)}">`).join('');
+ const gs=groupSets(S.sets.filter(s=>s.date==today()).sort((a,b)=>(a.ts||0)-(b.ts||0)));
+ $('#today').innerHTML=gs.length?gs.map((g,i)=>`<div class="grp" data-ids="${g.l.map(s=>s.id).join(',')}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><b>${i+1}. ${esc(g.s.ex)}${wpart(g.s)}</b></div><div class="chips">${g.l.map(s=>`<span class="chip"><input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps"><button class="x" data-del="${s.id}" aria-label="Delete set">×</button></span>`).join('')}</div></div>`).join(''):'<div class="mut">No sets yet today. Pick an exercise and log your first set.</div>';
  $$('[data-del]').forEach(b=>b.onclick=()=>{S.sets=S.sets.filter(s=>s.id!=b.dataset.del);save();render()});
  $$('[data-rep]').forEach(i=>{i.onfocus=()=>i.select();i.onchange=()=>{const s=S.sets.find(x=>x.id==i.dataset.rep);if(!s)return;const v=parseFloat(i.value);if(isNaN(v)||v<0){i.value=s.r;return}s.r=v;save();renderNow()}});
+ sortable($('#today'),'.grp',els=>{const all=S.sets.filter(s=>s.date==today()),t0=Math.min(...all.map(s=>s.ts||0).filter(Boolean),Date.now());let n=0;els.forEach(e=>e.dataset.ids.split(',').forEach(id=>{const s=S.sets.find(x=>x.id==id);if(s)s.ts=t0+(n++)}));save();render()});
+ renderPlan();
  if($('#sum').classList.contains('on'))renderSum(exs);
  if($('#hist').classList.contains('on'))renderHist();
  $('#bl').innerHTML=[...S.bw].sort((a,c)=>a.date<c.date?1:-1).map(b=>`<tr><td>${b.date}</td><td class="n">${b.kg} kg</td><td class="n"><button class="x" data-bd="${b.id}" aria-label="Delete weigh-in">×</button></td></tr>`).join('')||'<tr><td class="mut">No weigh-ins yet.</td></tr>';
@@ -207,7 +224,7 @@ function dl(name,text,type){const a=document.createElement('a');a.href=URL.creat
 $('#exp').onclick=()=>{dl('workout-backup-'+today()+'.json',JSON.stringify(S,null,1),'application/json');markBk()};
 $('#expc').onclick=()=>dl('workout-sets-'+today()+'.csv','date,exercise,weight_kg,reps,bodyweight_move,bodyweight_kg\n'+S.sets.map(s=>[s.date,'"'+s.ex.replace(/"/g,'""')+'"',s.w,s.r,s.bwm?1:0,bwAt(s.date)??''].join(',')).join('\n'),'text/csv');
 $('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.sets)||!Array.isArray(d.bw||[]))throw 0;
- if($('#impMode').value=='replace'){S={sets:d.sets,bw:d.bw||[],runs:d.runs||[]}}else{const ids=new Set(S.sets.map(s=>s.id)),bi=new Set(S.bw.map(s=>s.id));d.sets.forEach(s=>ids.has(s.id)||S.sets.push(s));(d.bw||[]).forEach(s=>bi.has(s.id)||S.bw.push(s));const ri=new Set(S.runs.map(s=>s.id));(d.runs||[]).forEach(s=>ri.has(s.id)||S.runs.push(s))}
+ if($('#impMode').value=='replace'){S={sets:d.sets,bw:d.bw||[],runs:d.runs||[],plan:d.plan||[]}}else{const ids=new Set(S.sets.map(s=>s.id)),bi=new Set(S.bw.map(s=>s.id));d.sets.forEach(s=>ids.has(s.id)||S.sets.push(s));(d.bw||[]).forEach(s=>bi.has(s.id)||S.bw.push(s));const ri=new Set(S.runs.map(s=>s.id));(d.runs||[]).forEach(s=>ri.has(s.id)||S.runs.push(s));const pi=new Set(S.plan.map(s=>s.id));(d.plan||[]).forEach(s=>pi.has(s.id)||S.plan.push(s))}
  save();render();$('#msg').textContent='Imported '+d.sets.length+' sets from the file.'}catch(x){$('#msg').textContent='That file is not a valid backup. Choose a JSON file exported from this app.'}};r.readAsText(f);e.target.value=''};
 
 /* ---------- history ---------- */
@@ -298,6 +315,37 @@ $('#shr').onclick=async()=>{const f=new File([JSON.stringify(S,null,1)],'workout
 async function persist(){const el=$('#pers');try{if(navigator.storage&&navigator.storage.persist){let p=await navigator.storage.persisted();if(!p)p=await navigator.storage.persist();
  el.textContent=p?'Storage is protected from automatic clean-up by Chrome.':'Chrome has not marked this storage as protected yet. Installing the app and using it regularly usually fixes that. Keep backing up.'}}catch(e){}}
 persist();
+/* ---------- planning, drag-and-drop, exercise switching ---------- */
+function groupSets(list){const g=[],idx={};list.forEach(s=>{const k=s.ex+'|'+sv(s)+(s.u||'kg')+'|'+!!s.bwm;if(!(k in idx)){idx[k]=g.length;g.push({s,l:[]})}g[idx[k]].l.push(s)});return g}
+function sortable(box,sel,done){
+ box.querySelectorAll(sel+' .grip').forEach(g=>{g.onpointerdown=e=>{
+  e.preventDefault();const item=g.closest(sel),key=()=>[...box.querySelectorAll(sel)].map(x=>x.dataset.ids||x.dataset.pid).join(),start=key();item.classList.add('drag');
+  const mv=ev=>{for(const o of box.querySelectorAll(sel)){if(o===item)continue;const r=o.getBoundingClientRect();if(ev.clientY<r.top||ev.clientY>r.bottom)continue;const mid=r.top+r.height/2,below=item.compareDocumentPosition(o)&4;if(below&&ev.clientY>mid)o.after(item);else if(!below&&ev.clientY<mid)o.before(item);break}};
+  const up=()=>{document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);item.classList.remove('drag');if(key()!=start)done([...box.querySelectorAll(sel)])};
+  document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up)}})}
+function prefill(name){const n=name.trim().toLowerCase(),l=S.sets.filter(s=>s.ex.toLowerCase()==n).sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:(a.ts||0)-(b.ts||0)).pop();
+ if(l){$('#w').value=sv(l)||'';$('#wu').value=l.u||'kg';$('#bwm').checked=!!l.bwm;$('#wu').dispatchEvent(new Event('change'))}
+ renderNow();return !!l}
+function pickEx(name){$('#ex').value=name;if(!prefill(name)){$('#w').value='';$('#bwm').checked=false;renderNow()}scrollTo({top:0,behavior:'smooth'})}
+let prevEx='';
+$('#ex').addEventListener('focus',()=>{prevEx=$('#ex').value;if(prevEx){$('#ex').placeholder=prevEx;$('#ex').value=''}});
+$('#ex').addEventListener('blur',()=>{if(!$('#ex').value)$('#ex').value=prevEx;$('#ex').placeholder='Exercise (e.g. Bench press)'});
+$('#ex').addEventListener('input',()=>{const n=$('#ex').value.trim().toLowerCase();if(n&&S.sets.some(s=>s.ex.toLowerCase()==n))prefill(n)});
+function lastInfo(ex,d){const n=ex.toLowerCase(),prev=S.sets.filter(s=>s.ex.toLowerCase()==n&&s.date<d);if(!prev.length)return 'No earlier sets yet';
+ const ld=prev.map(s=>s.date).sort().pop(),l=prev.filter(s=>s.date==ld).sort((a,b)=>(a.ts||0)-(b.ts||0));
+ const dt=new Date(ld+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:ld.slice(0,4)==d.slice(0,4)?undefined:'numeric'});
+ return 'Last ('+dt+'): '+groupSets(l).map(g=>{const s=g.s,t=s.w?wtxt(sv(s),s.u):'',lab=s.bwm?('BW'+(t?' +'+t:'')):(t||'no weight');return lab+': '+g.l.map(x=>x.r).join(', ')}).join('; ')+' ('+l.length+' set'+(l.length>1?'s':'')+')'}
+function renderPlan(){
+ const d=$('#pDate').value||today(),dt=new Date(d+'T12:00:00');
+ $('#pYM').textContent=dt.getFullYear()+' '+MN[dt.getMonth()];
+ const items=S.plan.filter(p=>p.date==d).sort((a,b)=>(a.o||0)-(b.o||0));
+ $('#plan').innerHTML=`<div class="day">--- ${sfx(dt.getDate())} ---</div>`+(items.length?items.map((p,i)=>`<div class="grp" data-pid="${p.id}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><a class="pl" role="button" tabindex="0" data-pick="${esc(p.ex)}">${i+1}. ${S.sets.some(s=>s.date==d&&s.ex.toLowerCase()==p.ex.toLowerCase())?'✓ ':''}${esc(p.ex)}</a><button class="x" data-pdel="${p.id}" aria-label="Remove from plan">×</button></div><div class="sub">${esc(lastInfo(p.ex,d))}</div></div>`).join(''):'<div class="mut" style="text-align:center">Nothing planned for this day yet.</div>');
+ $$('[data-pick]').forEach(a=>{a.onclick=()=>pickEx(a.dataset.pick);a.onkeydown=e=>{if(e.key=='Enter')pickEx(a.dataset.pick)}});
+ $$('[data-pdel]').forEach(b=>b.onclick=()=>{S.plan=S.plan.filter(p=>p.id!=b.dataset.pdel);save();renderPlan()});
+ sortable($('#plan'),'.grp',els=>{els.forEach((e,i)=>{const p=S.plan.find(x=>x.id==e.dataset.pid);if(p)p.o=i});save();renderPlan()})}
+function addPlan(){const v=$('#pAdd').value.trim();if(!v)return;const d=$('#pDate').value||today(),k=S.sets.find(s=>s.ex.toLowerCase()==v.toLowerCase());
+ S.plan.push({id:uid(),date:d,ex:k?k.ex:v,o:Math.max(-1,...S.plan.filter(p=>p.date==d).map(p=>p.o||0))+1});save();$('#pAdd').value='';render()}
+$('#pBtn').onclick=addPlan;$('#pAdd').addEventListener('keydown',e=>{if(e.key=='Enter')addPlan()});$('#pDate').onchange=renderPlan;$('#pDate').value=today();
 reset();render();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
