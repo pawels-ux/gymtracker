@@ -347,5 +347,5 @@ function addPlan(){const v=$('#pAdd').value.trim();if(!v)return;const d=$('#pDat
  S.plan.push({id:uid(),date:d,ex:k?k.ex:v,o:Math.max(-1,...S.plan.filter(p=>p.date==d).map(p=>p.o||0))+1});save();$('#pAdd').value='';render()}
 $('#pBtn').onclick=addPlan;$('#pAdd').addEventListener('keydown',e=>{if(e.key=='Enter')addPlan()});$('#pDate').onchange=renderPlan;$('#pDate').value=today();
 reset();render();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{}); 
 </script></body></html>
