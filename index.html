@@ -31,8 +31,15 @@ td.n,th.n{text-align:right}
 .gh{display:flex;align-items:center;gap:6px}
 .grip{cursor:grab;touch-action:none;user-select:none;padding:4px 8px;color:var(--mut);font-size:20px;line-height:1}
 .grp.drag{background:var(--bg);opacity:.7}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 38px}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:6px 0 0 38px}
 .chip{display:flex;align-items:center}
+[hidden]{display:none!important}
+#exPanel{max-height:40vh;overflow:auto;padding:4px;margin-bottom:8px}
+#exPanel button{display:block;width:100%;text-align:left;padding:10px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer}
+.tot{margin-left:auto;font-size:13px;color:var(--mut);white-space:nowrap}
+.sep{color:var(--mut)}
+.foot{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;text-align:right;font-size:14px;color:var(--mut)}
+.gh{flex-wrap:wrap}
 .sub{margin:2px 0 0 38px;font-size:13px;color:var(--mut);opacity:.75}
 .pl{flex:1;font-weight:600;cursor:pointer}
 .x{border:0;background:none;color:var(--mut);cursor:pointer;font-size:18px}
@@ -51,7 +58,8 @@ svg{width:100%;height:auto;display:block}
 
 <section id="log" class="on">
 <div class="box">
-<div class="row"><input id="ex" list="exl" placeholder="Exercise (e.g. Bench press)"><datalist id="exl"></datalist></div>
+<div class="row"><input id="ex" list="exl" placeholder="Exercise (e.g. Bench press)"><datalist id="exl"></datalist><button class="b alt" id="exBtn" aria-label="Show all exercises" aria-expanded="false">▾</button></div>
+<div id="exPanel" class="box" hidden></div>
 <div class="row">
 <button class="b alt" data-w="-2.5">−2.5</button>
 <input id="w" type="number" step="0.5" min="0" placeholder="Weight"><select id="wu" aria-label="Weight unit"><option>kg</option><option>lb</option></select>
@@ -174,10 +182,12 @@ const inPer=(s,p)=>{if(p=='all')return true;if(p=='month')return s.date.slice(0,
 function render(){renderNow();bkInfo();
  const exs=[...new Set(S.sets.map(s=>s.ex))].sort();
  $('#exl').innerHTML=[...new Set([...exs,...S.plan.map(p=>p.ex)])].sort().map(e=>`<option value="${esc(e)}">`).join('');
- const gs=groupSets(S.sets.filter(s=>s.date==today()).sort((a,b)=>(a.ts||0)-(b.ts||0)));
- $('#today').innerHTML=gs.length?gs.map((g,i)=>`<div class="grp" data-ids="${g.l.map(s=>s.id).join(',')}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><b>${i+1}. ${esc(g.s.ex)}${wpart(g.s)}</b></div><div class="chips">${g.l.map(s=>`<span class="chip"><input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps"><button class="x" data-del="${s.id}" aria-label="Delete set">×</button></span>`).join('')}</div></div>`).join(''):'<div class="mut">No sets yet today. Pick an exercise and log your first set.</div>';
- $$('[data-del]').forEach(b=>b.onclick=()=>{S.sets=S.sets.filter(s=>s.id!=b.dataset.del);save();render()});
- $$('[data-rep]').forEach(i=>{i.onfocus=()=>i.select();i.onchange=()=>{const s=S.sets.find(x=>x.id==i.dataset.rep);if(!s)return;const v=parseFloat(i.value);if(isNaN(v)||v<0){i.value=s.r;return}s.r=v;save();renderNow()}});
+ const gs=groupSets(S.sets.filter(s=>s.date==today()).sort((a,b)=>(a.ts||0)-(b.ts||0))),sum=l=>l.reduce((a,s)=>a+(s.r||0),0),td=S.sets.filter(s=>s.date==today());
+ $('#today').innerHTML=gs.length?gs.map((g,i)=>`<div class="grp" data-ids="${g.l.map(s=>s.id).join(',')}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><b>${i+1}. ${esc(g.s.ex)}${wpart(g.s)}</b><span class="tot">Reps: ${sum(g.l)} / Sets: ${g.l.length}</span></div><div class="chips">${g.l.map(s=>`<input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps">`).join('<span class="sep">×</span>')}</div></div>`).join('')+`<div class="foot">Today: Reps ${sum(td)} / Sets ${td.length}</div>`:'<div class="mut">No sets yet today. Pick an exercise and log your first set.</div>';
+ const upd=()=>{$$('#today .grp').forEach(gp=>{const ss=gp.dataset.ids.split(',').map(id=>S.sets.find(x=>x.id==id)).filter(Boolean);gp.querySelector('.tot').textContent='Reps: '+sum(ss)+' / Sets: '+ss.length});const f=$('#today .foot'),all=S.sets.filter(s=>s.date==today());if(f)f.textContent='Today: Reps '+sum(all)+' / Sets '+all.length};
+ $$('[data-rep]').forEach(i=>{i.onfocus=()=>i.select();i.onchange=()=>{const s=S.sets.find(x=>x.id==i.dataset.rep);if(!s)return;
+  if(i.value.trim()===''){if(confirm('Delete this set?')){S.sets=S.sets.filter(x=>x.id!=s.id);save();render()}else i.value=s.r;return}
+  const v=parseFloat(i.value);if(isNaN(v)||v<0){i.value=s.r;return}s.r=v;save();upd();renderNow()}});
  sortable($('#today'),'.grp',els=>{const all=S.sets.filter(s=>s.date==today()),t0=Math.min(...all.map(s=>s.ts||0).filter(Boolean),Date.now());let n=0;els.forEach(e=>e.dataset.ids.split(',').forEach(id=>{const s=S.sets.find(x=>x.id==id);if(s)s.ts=t0+(n++)}));save();render()});
  renderPlan();
  if($('#sum').classList.contains('on'))renderSum(exs);
@@ -327,9 +337,6 @@ function prefill(name){const n=name.trim().toLowerCase(),l=S.sets.filter(s=>s.ex
  if(l){$('#w').value=sv(l)||'';$('#wu').value=l.u||'kg';$('#bwm').checked=!!l.bwm;$('#wu').dispatchEvent(new Event('change'))}
  renderNow();return !!l}
 function pickEx(name){$('#ex').value=name;if(!prefill(name)){$('#w').value='';$('#bwm').checked=false;renderNow()}scrollTo({top:0,behavior:'smooth'})}
-let prevEx='';
-$('#ex').addEventListener('focus',()=>{prevEx=$('#ex').value;if(prevEx){$('#ex').placeholder=prevEx;$('#ex').value=''}});
-$('#ex').addEventListener('blur',()=>{if(!$('#ex').value)$('#ex').value=prevEx;$('#ex').placeholder='Exercise (e.g. Bench press)'});
 $('#ex').addEventListener('input',()=>{const n=$('#ex').value.trim().toLowerCase();if(n&&S.sets.some(s=>s.ex.toLowerCase()==n))prefill(n)});
 function lastInfo(ex,d){const n=ex.toLowerCase(),prev=S.sets.filter(s=>s.ex.toLowerCase()==n&&s.date<d);if(!prev.length)return 'No earlier sets yet';
  const ld=prev.map(s=>s.date).sort().pop(),l=prev.filter(s=>s.date==ld).sort((a,b)=>(a.ts||0)-(b.ts||0));
@@ -346,6 +353,13 @@ function renderPlan(){
 function addPlan(){const v=$('#pAdd').value.trim();if(!v)return;const d=$('#pDate').value||today(),k=S.sets.find(s=>s.ex.toLowerCase()==v.toLowerCase());
  S.plan.push({id:uid(),date:d,ex:k?k.ex:v,o:Math.max(-1,...S.plan.filter(p=>p.date==d).map(p=>p.o||0))+1});save();$('#pAdd').value='';render()}
 $('#pBtn').onclick=addPlan;$('#pAdd').addEventListener('keydown',e=>{if(e.key=='Enter')addPlan()});$('#pDate').onchange=renderPlan;$('#pDate').value=today();
+/* custom exercise dropdown: always lists every exercise, whatever is typed */
+function exNames(){const m={};S.sets.forEach(s=>{const v=(s.date||'')+String(s.ts||0).padStart(15,'0');if(!m[s.ex]||v>m[s.ex])m[s.ex]=v});S.plan.forEach(p=>{if(!(p.ex in m))m[p.ex]=''});return Object.keys(m).sort((a,b)=>m[a]<m[b]?1:m[a]>m[b]?-1:a.localeCompare(b))}
+function closeEx(){$('#exPanel').hidden=true;$('#exBtn').setAttribute('aria-expanded','false')}
+$('#exBtn').onclick=()=>{const p=$('#exPanel');if(!p.hidden){closeEx();return}
+ const n=exNames();p.innerHTML=n.length?n.map(x=>`<button data-xp="${esc(x)}">${esc(x)}</button>`).join(''):'<div class="mut" style="padding:8px">No exercises yet. Type a name above.</div>';
+ p.hidden=false;$('#exBtn').setAttribute('aria-expanded','true');
+ $$('[data-xp]').forEach(b=>b.onclick=()=>{closeEx();pickEx(b.dataset.xp)})};
 reset();render();
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{}); 
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></body></html>
