@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#12181c"><link rel="icon" href="icon-192.png">
+<title>Workout log</title>
+<style>
+:root{--bg:#12181c;--ink:#e6ecea;--mut:#8d9ea6;--acc:#4a6cf0;--hot:#e8b931;--card:#1b2429;--line:#2d3a41;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 "Bahnschrift","Segoe UI",system-ui,sans-serif;max-width:640px;margin:auto;padding:0 12px 40px}
+nav{display:flex;gap:4px;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+nav button{flex:1;padding:10px 0;border:0;border-bottom:3px solid transparent;background:none;font:inherit;font-size:14px;font-weight:600;color:var(--mut);cursor:pointer}
+nav button.on{color:var(--ink);border-color:var(--acc)}
+section{display:none}section.on{display:block}
+h2{font-size:15px;margin:22px 0 8px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:12px}
+input,select,button.b{font:inherit;padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+button.b{cursor:pointer;font-weight:600;background:var(--ink);color:#12181c;border-color:var(--ink)}
+button.b.alt{background:var(--card);color:var(--ink)}
+button.b.acc{background:var(--acc);border-color:var(--acc);color:#fff}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0;flex-wrap:wrap}
+.row>input{flex:1;min-width:0}
+#clock{font-size:64px;font-weight:700;text-align:center;font-variant-numeric:tabular-nums;padding:6px 0;border-radius:6px}
+#clock.done{background:var(--hot);color:#14232b}
+table{width:100%;border-collapse:collapse}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600;font-size:14px}
+td.n,th.n{text-align:right}
+.x{border:0;background:none;color:var(--mut);cursor:pointer;font-size:18px}
+.mut{color:var(--mut);font-size:14px}
+#now{border-left:4px solid var(--acc);padding:2px 10px;margin-bottom:8px}
+#now b{font-size:22px;display:block}
+.mb{display:flex;justify-content:space-between;width:100%;margin:4px 0}
+.day{margin:14px 0 4px;text-align:center;color:var(--mut);font-weight:600}
+.ln{margin:2px 0}
+svg{width:100%;height:auto;display:block}
+@media (prefers-reduced-motion:no-preference){#clock.done{transition:background .2s}}
+</style></head><body>
+<nav id="tabs">
+<button data-t="log" class="on">Log</button><button data-t="hist">History</button><button data-t="sum">Summary</button><button data-t="body">Bodyweight</button><button data-t="data">Data</button>
+</nav>
+
+<section id="log" class="on">
+<div class="box">
+<div class="row"><input id="ex" list="exl" placeholder="Exercise (e.g. Bench press)"><datalist id="exl"></datalist></div>
+<div class="row">
+<button class="b alt" data-w="-2.5">−2.5</button>
+<input id="w" type="number" step="0.5" min="0" placeholder="Weight"><select id="wu" aria-label="Weight unit"><option>kg</option><option>lb</option></select>
+<button class="b alt" data-w="2.5">+2.5</button>
+</div>
+<label class="row mut"><input type="checkbox" id="bwm" style="flex:none"> Bodyweight only (no added weight)</label>
+</div>
+
+<h2>Timer</h2>
+<div class="box">
+<div class="row">
+<button class="b acc" id="mSw">Stopwatch</button><button class="b alt" id="mCd">Countdown</button>
+<input id="cdSec" type="number" min="1" value="90" style="max-width:90px" aria-label="Countdown seconds"><span class="mut">sec</span><button class="b alt" id="mute">Sound: on</button>
+</div>
+<div id="now"></div>
+<div id="clock" aria-live="off">0:00.0</div>
+<div class="row"><button class="b" id="go" style="flex:1">Start</button><button class="b alt" id="rs">Restart without logging</button></div>
+<div class="row"><input id="reps" type="number" min="0" placeholder="Reps done"><button class="b acc" id="logrs">Log reps &amp; restart</button></div>
+<div class="row" id="quick"></div>
+</div>
+
+<h2>Today</h2>
+<div class="box"><table id="today"></table></div>
+</section>
+
+<section id="hist">
+<div class="row"><select id="hYr" aria-label="Year"></select><button class="b alt" id="hOrd">Newest first</button></div>
+<div id="hOut"></div>
+</section>
+
+<section id="sum">
+<div class="row">
+<select id="sEx"></select>
+<select id="sPer"><option value="all">All time</option><option value="week">Last 7 days</option><option value="month">This month</option></select>
+<select id="sBk"></select>
+</div>
+<h2>Bests for this exercise</h2>
+<div class="box"><table id="bests"></table></div>
+<h2>Best estimated 1RM over time, with bodyweight</h2>
+<div class="box"><svg id="chart" viewBox="0 0 600 240"></svg>
+<div class="mut"><span style="color:#7b97ff">■</span> est. 1RM (kg) &nbsp; <span style="color:var(--hot)">■</span> bodyweight (kg). Sets above 12 reps are left out of 1RM.</div></div>
+<h2>Totals: reps per exercise and distance run</h2>
+<div class="box"><table id="tot"></table></div>
+</section>
+
+<section id="body">
+<div class="row"><input id="bd" type="date"><input id="bk" type="number" step="0.1" placeholder="kg"><button class="b acc" id="bAdd">Save weigh-in</button></div>
+<div class="box"><table id="bl"></table></div>
+</section>
+
+<section id="data">
+<div class="box">
+<p class="mut">Everything is stored in this browser. Export a backup file to move to a new phone.</p>
+<div class="row"><button class="b" id="exp">Export backup (JSON)</button><button class="b alt" id="expc">Export sets (CSV)</button></div>
+<div class="row"><input type="file" id="imp" accept=".json"><select id="impMode"><option value="merge">Merge with current data</option><option value="replace">Replace current data</option></select></div>
+<p class="mut" id="msg"></p>
+</div>
+</section>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+let S;try{S=JSON.parse(localStorage.getItem('wl1'))}catch(e){}
+S=S&&S.sets?S:{sets:[],bw:[]};S.runs=S.runs||[];
+const save=()=>{try{localStorage.setItem('wl1',JSON.stringify(S))}catch(e){}};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>new Date().toLocaleDateString('sv');
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+$$('#tabs button').forEach(b=>b.onclick=()=>{$$('#tabs button').forEach(x=>x.classList.toggle('on',x==b));$$('section').forEach(s=>s.classList.toggle('on',s.id==b.dataset.t));render()});
+
+/* ---------- timer ---------- */
+let mode='sw',t0=0,run=false,fired=false,ac,raf;
+const fmt=ms=>{const s=Math.max(0,ms)/1000,m=Math.floor(s/60);return m+':'+(s%60).toFixed(1).padStart(4,'0')};
+function beep(){if(!muted)try{ac=ac||new AudioContext();const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=880;g.gain.value=.3;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.5)}catch(e){}if(navigator.vibrate)navigator.vibrate(300)}
+const total=()=>Math.max(1,+$('#cdSec').value||90)*1000;
+function tick(){
+ if(!run)return;const el=Date.now()-t0;
+ if(mode=='sw')$('#clock').textContent=fmt(el);
+ else{const left=total()-el;$('#clock').textContent=fmt(left);
+  if(left<=0&&!fired){fired=true;beep();$('#clock').classList.add('done');$('#clock').textContent='0:00.0';run=false;$('#go').textContent='Start';return}}
+ raf=requestAnimationFrame(tick)}
+function start(){try{ac=ac||new AudioContext();ac.resume()}catch(e){}
+ t0=Date.now();run=true;fired=false;$('#clock').classList.remove('done');$('#go').textContent='Pause';cancelAnimationFrame(raf);tick()}
+function reset(){run=false;fired=false;cancelAnimationFrame(raf);$('#clock').classList.remove('done');$('#clock').textContent=mode=='sw'?'0:00.0':fmt(total());$('#go').textContent='Start'}
+$('#go').onclick=()=>{if(run){run=false;$('#go').textContent='Start';$('#clock').textContent=fmt(mode=='sw'?Date.now()-t0:total()-(Date.now()-t0))}else start()};
+$('#rs').onclick=()=>start();
+function setMode(m){mode=m;$('#mSw').className='b '+(m=='sw'?'acc':'alt');$('#mCd').className='b '+(m=='cd'?'acc':'alt');reset()}
+$('#mSw').onclick=()=>setMode('sw');$('#mCd').onclick=()=>setMode('cd');$('#cdSec').onchange=reset;
+function logSet(r){
+ const ex=$('#ex').value.trim();if(!ex){$('#ex').focus();return false}
+ const v=parseFloat($('#w').value)||0,u=$('#wu').value;
+ S.sets.push({id:uid(),date:today(),ex,w:u=='lb'?v*LB:v,u,wl:u=='lb'?v:undefined,r:+r,bwm:$('#bwm').checked,ts:Date.now()});save();
+ $('#reps').value='';render();return true}
+$('#logrs').onclick=()=>{const r=$('#reps').value;if(r===''||r<0){$('#reps').focus();return}if(logSet(r))start()};
+$$('[data-w]').forEach(b=>b.onclick=()=>{const k=$('#wu').value=='lb'?2:1;$('#w').value=Math.max(0,(parseFloat($('#w').value)||0)+ +b.dataset.w*k);$('#bwm').checked=false});
+$('#quick').innerHTML='<span class="mut">Quick log:</span>'+[3,5,8,10,12,15].map(n=>`<button class="b alt" data-q="${n}">${n}</button>`).join('');
+$$('[data-q]').forEach(b=>b.onclick=()=>{if(logSet(b.dataset.q))start()});
+$('#ex').onchange=()=>{const l=[...S.sets].reverse().find(s=>s.ex.toLowerCase()==$('#ex').value.trim().toLowerCase());if(l){$('#w').value=sv(l)||'';$('#wu').value=l.u||'kg';$('#bwm').checked=!!l.bwm}};
+
+/* ---------- helpers ---------- */
+function bwAt(date){if(!S.bw.length)return null;const b=[...S.bw].sort((a,c)=>a.date<c.date?-1:1);let r=b[0].kg;for(const e of b){if(e.date<=date)r=e.kg}return r}
+const LB=0.45359237;
+const sv=s=>s.u=='lb'?s.wl:s.w;
+const wtxt=(v,u)=>u=='lb'?`${+v} lb / ${(v*LB).toFixed(1)} kg`:`${+v} kg`;
+const wpart=s=>{if(!s.w)return '';const t=wtxt(sv(s),s.u);return ' ('+(s.bwm?'BW +'+t:t)+')'};
+const load=s=>s.bwm?(bwAt(s.date)||0)+s.w:s.w;
+const e1=s=>s.r>=1&&s.r<=12?load(s)*(1+s.r/30):null;
+const bucket=s=>{const b=bwAt(s.date);return b==null?'?':Math.floor(b/2)*2};
+const inPer=(s,p)=>{if(p=='all')return true;if(p=='month')return s.date.slice(0,7)==today().slice(0,7);return (new Date(today())-new Date(s.date))/864e5<7};
+
+/* ---------- render ---------- */
+function render(){renderNow();
+ const exs=[...new Set(S.sets.map(s=>s.ex))].sort();
+ $('#exl').innerHTML=exs.map(e=>`<option value="${esc(e)}">`).join('');
+ const t=S.sets.filter(s=>s.date==today());
+ $('#today').innerHTML=t.length?'<tr><th>Exercise</th><th class="n">Reps</th><th></th></tr>'+t.map(s=>`<tr><td>${esc(s.ex)}${wpart(s)}</td><td class="n">${s.r}</td><td class="n"><button class="x" data-del="${s.id}" aria-label="Delete set">×</button></td></tr>`).join(''):'<tr><td class="mut">No sets yet today. Pick an exercise and log your first set.</td></tr>';
+ $$('[data-del]').forEach(b=>b.onclick=()=>{S.sets=S.sets.filter(s=>s.id!=b.dataset.del);save();render()});
+ if($('#sum').classList.contains('on'))renderSum(exs);
+ if($('#hist').classList.contains('on'))renderHist();
+ $('#bl').innerHTML=[...S.bw].sort((a,c)=>a.date<c.date?1:-1).map(b=>`<tr><td>${b.date}</td><td class="n">${b.kg} kg</td><td class="n"><button class="x" data-bd="${b.id}" aria-label="Delete weigh-in">×</button></td></tr>`).join('')||'<tr><td class="mut">No weigh-ins yet.</td></tr>';
+ $$('[data-bd]').forEach(b=>b.onclick=()=>{S.bw=S.bw.filter(x=>x.id!=b.dataset.bd);save();render()});
+}
+function renderSum(exs){
+ const sel=$('#sEx'),cur=sel.value;sel.innerHTML=exs.map(e=>`<option ${e==cur?'selected':''}>${esc(e)}</option>`).join('');
+ const ex=sel.value,per=$('#sPer').value;
+ const all=S.sets.filter(s=>s.ex==ex&&inPer(s,per));
+ const bks=[...new Set(S.sets.filter(s=>s.ex==ex).map(bucket))].filter(b=>b!='?').sort((a,b)=>a-b);
+ const bc=$('#sBk').value||'all';
+ $('#sBk').innerHTML='<option value="all">Any bodyweight</option>'+bks.map(b=>`<option value="${b}" ${bc==b?'selected':''}>${b}–${b+2} kg</option>`).join('');
+ const rows=all.filter(s=>$('#sBk').value=='all'||bucket(s)==$('#sBk').value);
+ const best=(f,l)=>{const a=rows.filter(f).map(load);return a.length?(+Math.max(...a).toFixed(1))+' kg':'—'};
+ const e=rows.map(e1).filter(x=>x!=null);
+ const mr=rows.length?Math.max(...rows.map(s=>s.r)):null;
+ $('#bests').innerHTML=rows.length?`<tr><td>Heaviest, 1–5 reps</td><td class="n">${best(s=>s.r>=1&&s.r<=5)}</td></tr><tr><td>Heaviest, 6–10 reps</td><td class="n">${best(s=>s.r>=6&&s.r<=10)}</td></tr><tr><td>Heaviest, 11+ reps</td><td class="n">${best(s=>s.r>=11)}</td></tr><tr><td>Most reps in a set</td><td class="n">${mr}</td></tr><tr><td>Best estimated 1RM</td><td class="n">${e.length?Math.max(...e).toFixed(1)+' kg':'—'}</td></tr><tr><td class="mut">Sets counted</td><td class="n mut">${rows.length}</td></tr>`:'<tr><td class="mut">No sets match. Log some sets or widen the filters.</td></tr>';
+ /* chart */
+ const byD={};rows.forEach(s=>{const v=e1(s);if(v!=null)byD[s.date]=Math.max(byD[s.date]||0,v)});
+ const ds=Object.keys(byD).sort(),svg=$('#chart');
+ if(!ds.length){svg.innerHTML='<text x="20" y="40" fill="#8d9ea6">Not enough data for a chart yet.</text>'}else{
+  const W=600,H=240,p=36,t0=+new Date(ds[0]),t1=+new Date(ds[ds.length-1]),sp=Math.max(t1-t0,864e5);
+  const X=d=>p+(+new Date(d)-t0)/sp*(W-2*p-(ds.length>1?0:0))*(ds.length>1?1:0)+(ds.length>1?0:(W-2*p)/2);
+  const ev=ds.map(d=>byD[d]),bv=ds.map(d=>bwAt(d)).filter(x=>x!=null);
+  const sc=(a)=>{const lo=Math.min(...a),hi=Math.max(...a),r=Math.max(hi-lo,1);return v=>H-p-(v-lo+r*.1)/(r*1.2)*(H-2*p)};
+  const ye=sc(ev),yb=bv.length?sc(bv):null;
+  const line=(pts,c,dash)=>`<polyline fill="none" stroke="${c}" stroke-width="2.5" ${dash?'stroke-dasharray="6 4"':''} points="${pts}"/>`;
+  svg.innerHTML=line(ds.map(d=>X(d)+','+ye(byD[d])),'#7b97ff')+(yb?line(ds.filter(d=>bwAt(d)!=null).map(d=>X(d)+','+yb(bwAt(d))),'#e8b931',1):'')+ds.map(d=>`<circle cx="${X(d)}" cy="${ye(byD[d])}" r="4" fill="#7b97ff"><title>${d}: ${byD[d].toFixed(1)} kg</title></circle>`).join('')+`<text x="${p}" y="${H-8}" font-size="12" fill="#8d9ea6">${ds[0]}</text><text x="${W-p}" y="${H-8}" font-size="12" text-anchor="end" fill="#8d9ea6">${ds[ds.length-1]}</text><text x="4" y="16" font-size="12" fill="#7b97ff">${Math.max(...ev).toFixed(0)}</text><text x="4" y="${H-p}" font-size="12" fill="#7b97ff">${Math.min(...ev).toFixed(0)}</text>`}
+ /* totals */
+ const tt={};S.sets.filter(s=>inPer(s,per)).forEach(s=>{const o=tt[s.ex]=tt[s.ex]||{r:0,n:0};o.r+=s.r;o.n++});
+ const ks=Object.keys(tt).sort((a,b)=>tt[b].r-tt[a].r);
+ const rr=S.runs.filter(r=>inPer(r,per)&&r.km>0),km=rr.reduce((x,r)=>x+r.km,0);
+ const tr=ks.map(k=>`<tr><td>${esc(k)}</td><td class="n">${tt[k].n} sets</td><td class="n">${tt[k].r} reps</td></tr>`).join('')+(rr.length?`<tr><td>Running</td><td class="n">${rr.length} runs</td><td class="n">${km.toFixed(2)} km</td></tr>`:'');
+ $('#tot').innerHTML=tr||'<tr><td class="mut">Nothing logged in this period.</td></tr>';
+}
+['#sEx','#sPer','#sBk'].forEach(i=>$(i).onchange=render);
+$('#bd').value=today();
+$('#bAdd').onclick=()=>{const k=parseFloat($('#bk').value);if(!k||!$('#bd').value)return;S.bw.push({id:uid(),date:$('#bd').value,kg:k});save();$('#bk').value='';render()};
+
+/* ---------- export / import ---------- */
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+$('#exp').onclick=()=>dl('workout-backup-'+today()+'.json',JSON.stringify(S,null,1),'application/json');
+$('#expc').onclick=()=>dl('workout-sets-'+today()+'.csv','date,exercise,weight_kg,reps,bodyweight_move,bodyweight_kg\n'+S.sets.map(s=>[s.date,'"'+s.ex.replace(/"/g,'""')+'"',s.w,s.r,s.bwm?1:0,bwAt(s.date)??''].join(',')).join('\n'),'text/csv');
+$('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d.sets)||!Array.isArray(d.bw||[]))throw 0;
+ if($('#impMode').value=='replace'){S={sets:d.sets,bw:d.bw||[],runs:d.runs||[]}}else{const ids=new Set(S.sets.map(s=>s.id)),bi=new Set(S.bw.map(s=>s.id));d.sets.forEach(s=>ids.has(s.id)||S.sets.push(s));(d.bw||[]).forEach(s=>bi.has(s.id)||S.bw.push(s));const ri=new Set(S.runs.map(s=>s.id));(d.runs||[]).forEach(s=>ri.has(s.id)||S.runs.push(s))}
+ save();render();$('#msg').textContent='Imported '+d.sets.length+' sets from the file.'}catch(x){$('#msg').textContent='That file is not a valid backup. Choose a JSON file exported from this app.'}};r.readAsText(f);e.target.value=''};
+
+/* ---------- history ---------- */
+let hMonth=null,hDesc=true,hEdit=false,hFocus=null;
+const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+const sfx=n=>{const a=['th','st','nd','rd'],v=n%100;return n+(a[(v-20)%10]||a[v]||a[0])};
+const mdates=m=>[...new Set([...S.sets,...S.runs].map(x=>x.date).filter(d=>d.slice(0,7)==m))].sort();
+const hClean=()=>{S.sets=S.sets.filter(s=>s.ex&&s.r!=null);S.runs=S.runs.filter(r=>r.km>0);save()};
+const addS=d=>{const l=S.sets.filter(s=>s.date==d).sort((a,b)=>(a.ts||0)-(b.ts||0)).pop(),id=uid();S.sets.push({id,date:d,ex:l?l.ex:'',w:l?l.w:0,r:null,bwm:l?!!l.bwm:false,ts:Date.now()});save();hMonth=d.slice(0,7);hFocus={id,f:l?'r':'ex'};renderHist()};
+const addR=d=>{S.runs.push({id:uid(),date:d,km:0,ts:Date.now()});save();hMonth=d.slice(0,7);renderHist()};
+function renderHist(){
+ const ms=[...new Set([...S.sets,...S.runs].map(s=>s.date.slice(0,7)))].sort(),yrs=[...new Set(ms.map(m=>m.slice(0,4)))].sort().reverse();
+ const sel=$('#hYr'),cur=sel.value||'all';
+ sel.innerHTML='<option value="all">All years</option>'+yrs.map(y=>`<option ${y==cur?'selected':''}>${y}</option>`).join('');
+ $('#hOrd').textContent=hDesc?'Newest first':'Oldest first';
+ $('#hYr').parentNode.style.display=hMonth?'none':'flex';
+ const out=$('#hOut');
+ if(hMonth){
+  let h=`<div class="row"><button class="b alt" id="hBack">Back</button><b style="flex:1">${MN[+hMonth.slice(5)-1]} ${hMonth.slice(0,4)}</b><button class="b ${hEdit?'acc':'alt'}" id="hEd">${hEdit?'Done':'Edit'}</button></div>`;
+  mdates(hMonth).forEach(d=>{
+   const ds=S.sets.filter(s=>s.date==d).sort((a,b)=>(a.ts||0)-(b.ts||0)),rs=S.runs.filter(r=>r.date==d);
+   const bd=S.bw.filter(x=>x.date==d).pop();
+   h+=`<div class="day">--- ${sfx(+d.slice(8))} ---${hEdit?` <input data-bwd="${d}" type="number" step="0.1" min="0" value="${bd?bd.kg:''}" placeholder="kg" style="width:84px;padding:4px 6px" aria-label="Bodyweight kg"> kg`:(bd?` (${bd.kg} kg)`:'')}</div><div class="box">`;
+   if(!hEdit){
+    const g=[],idx={};
+    ds.forEach(s=>{const k=s.ex+'|'+sv(s)+(s.u||'kg')+'|'+!!s.bwm;if(!(k in idx)){idx[k]=g.length;g.push({s,r:[]})}g[idx[k]].r.push(s.r)});
+    h+=g.map((x,i)=>`<div class="ln">${i+1}. ${esc(x.s.ex)}${wpart(x.s)}: <span class="mut">${x.r.join(', ')}</span></div>`).join('')+rs.map((r,i)=>`<div class="ln">${g.length+i+1}. Run ${r.km.toFixed(2)}km</div>`).join('');
+   }else{
+    h+=ds.map(s=>`<div class="row" data-sid="${s.id}"><input data-f="ex" list="exl" value="${esc(s.ex)}" placeholder="Exercise" style="flex:2 1 120px"><input data-f="w" type="number" step="0.5" min="0" value="${sv(s)||''}" placeholder="weight" style="flex:1 1 60px"><select data-f="u" aria-label="Unit"><option ${s.u=='lb'?'':'selected'}>kg</option><option ${s.u=='lb'?'selected':''}>lb</option></select><input data-f="r" type="number" min="0" value="${s.r??''}" placeholder="reps" style="flex:1 1 60px"><label class="mut"><input type="checkbox" data-f="bwm" style="flex:none" ${s.bwm?'checked':''}> BW</label><button class="x" data-dels="${s.id}" aria-label="Delete set">×</button></div>`).join('')
+     +rs.map(r=>`<div class="row" data-rid="${r.id}"><span style="flex:2 1 120px">Run</span><input data-f="km" type="number" step="0.01" min="0" value="${r.km.toFixed(2)}" style="flex:1 1 90px"><span class="mut">km</span><button class="x" data-delr="${r.id}" aria-label="Delete run">×</button></div>`).join('')
+     +`<div class="row"><button class="b alt" data-as="${d}">+ Set</button><button class="b alt" data-ar="${d}">+ Run</button></div>`;
+   }
+   h+='</div>';
+  });
+  if(hEdit){const t=today(),def=t.slice(0,7)==hMonth?t:hMonth+'-01';h+=`<h2>Add to another date</h2><div class="row"><input type="date" id="hDate" value="${def}"><button class="b alt" id="hAs">Add set</button><button class="b alt" id="hAr">Add run</button></div>`}
+  out.innerHTML=h;
+  $('#hBack').onclick=()=>{if(hEdit)hClean();hMonth=null;hEdit=false;renderHist()};
+  $('#hEd').onclick=()=>{if(hEdit){hClean();if(!mdates(hMonth).length)hMonth=null}hEdit=!hEdit;renderHist()};
+  $$('[data-sid] [data-f]').forEach(i=>i.onchange=()=>{const row=i.closest('[data-sid]'),s=S.sets.find(x=>x.id==row.dataset.sid),f=i.dataset.f,q=k=>row.querySelector('[data-f='+k+']');
+   if(f=='ex')s.ex=i.value.trim();
+   else if(f=='r')s.r=i.value===''?null:(parseFloat(i.value)||0);
+   else if(f=='bwm'){s.bwm=i.checked;if(s.bwm){s.w=0;s.u='kg';delete s.wl;q('w').value=''}}
+   else{const v=parseFloat(q('w').value)||0,u=q('u').value;s.u=u;if(u=='lb'){s.wl=v;s.w=v*LB}else{s.w=v;delete s.wl}if(v>0){s.bwm=false;q('bwm').checked=false}}
+   save()});
+  $$('[data-bwd]').forEach(i=>i.onchange=()=>{const d=i.dataset.bwd,v=parseFloat(i.value),o=S.bw.find(b=>b.date==d);S.bw=S.bw.filter(b=>b.date!=d);if(v>0)S.bw.push({id:o?o.id:uid(),date:d,kg:Math.round(v*10)/10});save()});
+  $$('[data-rid] [data-f]').forEach(i=>i.onchange=()=>{const r=S.runs.find(x=>x.id==i.closest('[data-rid]').dataset.rid);r.km=Math.round((parseFloat(i.value)||0)*100)/100;i.value=r.km.toFixed(2);save()});
+  $$('[data-dels]').forEach(b=>b.onclick=()=>{S.sets=S.sets.filter(s=>s.id!=b.dataset.dels);save();renderHist()});
+  $$('[data-delr]').forEach(b=>b.onclick=()=>{S.runs=S.runs.filter(r=>r.id!=b.dataset.delr);save();renderHist()});
+  $$('[data-as]').forEach(b=>b.onclick=()=>addS(b.dataset.as));
+  $$('[data-ar]').forEach(b=>b.onclick=()=>addR(b.dataset.ar));
+  if(hEdit){$('#hAs').onclick=()=>$('#hDate').value&&addS($('#hDate').value);$('#hAr').onclick=()=>$('#hDate').value&&addR($('#hDate').value)}
+  if(hFocus){const e=document.querySelector(`[data-sid="${hFocus.id}"] [data-f="${hFocus.f}"]`);if(e)e.focus();hFocus=null}
+  return}
+ let h=`<div class="row"><button class="b acc" id="hNew">Add a run or past workout</button></div>`;
+ if(!ms.length)h+='<p class="mut">No workouts or runs yet. Log a set on the Log tab, or add a run above.</p>';
+ (hDesc?yrs:[...yrs].reverse()).filter(y=>sel.value=='all'||y==sel.value).forEach(y=>{
+  const list=ms.filter(m=>m.slice(0,4)==y);if(hDesc)list.reverse();
+  h+=`<h2>${y}</h2>`+list.map(m=>{const sets=S.sets.filter(s=>s.date.slice(0,7)==m),km=S.runs.filter(r=>r.date.slice(0,7)==m).reduce((a,r)=>a+r.km,0);return `<button class="b alt mb" data-m="${m}"><span>${MN[+m.slice(5)-1]}</span><span class="mut">${mdates(m).length} days, ${sets.length} sets${km?', '+km.toFixed(2)+' km':''}</span></button>`}).join('');
+ });
+ out.innerHTML=h;
+ $$('[data-m]').forEach(b=>b.onclick=()=>{hMonth=b.dataset.m;hEdit=false;renderHist();scrollTo(0,0)});
+ $('#hNew').onclick=()=>{hMonth=today().slice(0,7);hEdit=true;renderHist()};
+}
+$('#hYr').onchange=renderHist;
+$('#hOrd').onclick=()=>{hDesc=!hDesc;renderHist()};
+function renderNow(){
+ const ex=$('#ex').value.trim(),w=parseFloat($('#w').value),bw=$('#bwm').checked,el=$('#now');
+ if(!ex){el.innerHTML='<span class="mut">No exercise selected. Pick one above.</span>';return}
+ const t=S.sets.filter(s=>s.date==today()&&s.ex.toLowerCase()==ex.toLowerCase()).sort((a,b)=>(a.ts||0)-(b.ts||0));
+ const u=$('#wu').value,wt=bw?'Bodyweight':(w?wtxt(w,u):'');
+ el.innerHTML=`<b>${esc(ex)}${wt?' ('+wt+')':''}</b><span class="mut">Set ${t.length+1} today${t.length?', last set '+t[t.length-1].r+' reps':''}</span>`}
+/* 2: switching bodyweight clears the weight field */
+$('#bwm').addEventListener('change',()=>{$('#w').value=''});
+$('#w').addEventListener('input',()=>{if($('#w').value!=='')$('#bwm').checked=false});
+$('#wu').addEventListener('change',()=>{const k=$('#wu').value=='lb'?2:1;$$('[data-w]').forEach(b=>b.textContent=(+b.dataset.w>0?'+':'−')+Math.abs(b.dataset.w*k));renderNow()});
+['#ex','#w','#bwm'].forEach(i=>{$(i).addEventListener('input',renderNow);$(i).addEventListener('change',renderNow)});
+$$('[data-w]').forEach(b=>b.addEventListener('click',renderNow));
+let muted=false;try{muted=localStorage.getItem('wl-mute')=='1'}catch(e){}
+function setMute(v){muted=v;try{localStorage.setItem('wl-mute',v?'1':'0')}catch(e){}$('#mute').textContent=v?'Sound: off':'Sound: on';$('#mute').className='b '+(v?'acc':'alt')}
+$('#mute').onclick=()=>setMute(!muted);setMute(muted);
+reset();render();
+if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script></body></html>
