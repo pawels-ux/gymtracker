@@ -38,8 +38,8 @@ td.n,th.n{text-align:right}
 #exPanel button{display:block;width:100%;text-align:left;padding:10px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer}
 .tot{margin-left:auto;font-size:13px;color:var(--mut);white-space:nowrap}
 .sep{color:var(--mut)}
-#qs{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;position:relative;padding:6px 0 10px;-webkit-overflow-scrolling:touch}
-#qs button{flex:none;min-width:52px;scroll-snap-align:center}
+#qs{display:flex;gap:6px;overflow-x:auto;position:relative;padding:6px 0 10px;touch-action:pan-x;overscroll-behavior-x:contain}
+#qs button{flex:none;min-width:46px;padding:10px 8px}
 .gn{flex:1 1 140px;min-width:0;padding:6px 8px;font-weight:600}.gw{width:76px;padding:6px 8px}.gh select{padding:6px}.gh label{white-space:nowrap}
 .up{color:#7ddc9a}.dn{color:var(--mut)}
 .vt td{font-size:14px}.vt small{display:block;color:var(--mut);font-size:12px}
@@ -167,7 +167,7 @@ $('#rs').onclick=()=>start();
 function setMode(m){mode=m;$('#mSw').className='b '+(m=='sw'?'acc':'alt');$('#mCd').className='b '+(m=='cd'?'acc':'alt');reset()}
 $('#mSw').onclick=()=>setMode('sw');$('#mCd').onclick=()=>setMode('cd');$('#cdSec').onchange=reset;
 function logSet(r){
- const ex=$('#ex').value.trim();if(!ex){$('#ex').focus();return false}
+ const ex=$('#ex').value.trim();if(!ex){$('#now').innerHTML='<b style="color:var(--hot)">Pick an exercise first</b><span class="mut">Choose one from the list, then tap the reps again.</span>';scrollTo({top:0,behavior:'smooth'});if($('#exPanel').hidden)$('#exBtn').click();return false}
  const v=parseFloat($('#w').value)||0,u=$('#wu').value;
  S.sets.push({id:uid(),date:today(),ex,w:u=='lb'?v*LB:v,u,wl:u=='lb'?v:undefined,r:+r,bwm:$('#bwm').checked,ts:Date.now()});save();
  $('#reps').value='';render();return true}
@@ -177,6 +177,7 @@ let qSel=0;try{qSel=+localStorage.getItem('wl-q')||0}catch(e){}
 $('#quick').innerHTML='<div class="mut">Quick log: swipe for more, tap a number to log it</div><div id="qs">'+Array.from({length:30},(_,i)=>`<button class="b alt" data-q="${i+1}">${i+1}</button>`).join('')+'</div>';
 function qMark(){$$('[data-q]').forEach(b=>b.className='b '+(+b.dataset.q==qSel?'acc':'alt'))}
 $$('[data-q]').forEach(b=>b.onclick=()=>{qSel=+b.dataset.q;try{localStorage.setItem('wl-q',qSel)}catch(e){}qMark();if(logSet(b.dataset.q))start()});
+$('#qs').addEventListener('wheel',e=>{if(e.deltaY&&!e.deltaX){e.preventDefault();$('#qs').scrollLeft+=e.deltaY*3}},{passive:false});
 qMark();{const sb=$('[data-q="'+qSel+'"]'),qs=$('#qs');if(sb)qs.scrollLeft=Math.max(0,sb.offsetLeft-qs.clientWidth/2+sb.offsetWidth/2)}
 $('#ex').onchange=()=>prefill($('#ex').value);
 
