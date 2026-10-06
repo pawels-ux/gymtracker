@@ -38,6 +38,8 @@ td.n,th.n{text-align:right}
 #exPanel button{display:block;width:100%;text-align:left;padding:10px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer}
 .tot{margin-left:auto;font-size:13px;color:var(--mut);white-space:nowrap}
 .sep{color:var(--mut)}
+#qs{display:flex;gap:6px;overflow-x:auto;scroll-snap-type:x proximity;position:relative;padding:6px 0 10px;-webkit-overflow-scrolling:touch}
+#qs button{flex:none;min-width:52px;scroll-snap-align:center}
 .gn{flex:1 1 140px;min-width:0;padding:6px 8px;font-weight:600}.gw{width:76px;padding:6px 8px}.gh select{padding:6px}.gh label{white-space:nowrap}
 .up{color:#7ddc9a}.dn{color:var(--mut)}
 .vt td{font-size:14px}.vt small{display:block;color:var(--mut);font-size:12px}
@@ -81,7 +83,7 @@ svg{width:100%;height:auto;display:block}
 <div id="clock" aria-live="off">0:00.0</div>
 <div class="row"><button class="b" id="go" style="flex:1">Start</button><button class="b alt" id="rs">Restart without logging</button></div>
 <div class="row"><input id="reps" type="number" min="0" placeholder="Reps done"><button class="b acc" id="logrs">Log reps &amp; restart</button></div>
-<div class="row" id="quick"></div>
+<div id="quick" style="margin:8px 0"></div>
 </div>
 
 <h2>Today</h2>
@@ -171,8 +173,11 @@ function logSet(r){
  $('#reps').value='';render();return true}
 $('#logrs').onclick=()=>{const r=$('#reps').value;if(r===''||r<0){$('#reps').focus();return}if(logSet(r))start()};
 $$('[data-w]').forEach(b=>b.onclick=()=>{const k=$('#wu').value=='lb'?2:1;$('#w').value=Math.max(0,(parseFloat($('#w').value)||0)+ +b.dataset.w*k);$('#bwm').checked=false});
-$('#quick').innerHTML='<span class="mut">Quick log:</span>'+[3,5,8,10,12,15].map(n=>`<button class="b alt" data-q="${n}">${n}</button>`).join('');
-$$('[data-q]').forEach(b=>b.onclick=()=>{if(logSet(b.dataset.q))start()});
+let qSel=0;try{qSel=+localStorage.getItem('wl-q')||0}catch(e){}
+$('#quick').innerHTML='<div class="mut">Quick log: swipe for more, tap a number to log it</div><div id="qs">'+Array.from({length:30},(_,i)=>`<button class="b alt" data-q="${i+1}">${i+1}</button>`).join('')+'</div>';
+function qMark(){$$('[data-q]').forEach(b=>b.className='b '+(+b.dataset.q==qSel?'acc':'alt'))}
+$$('[data-q]').forEach(b=>b.onclick=()=>{qSel=+b.dataset.q;try{localStorage.setItem('wl-q',qSel)}catch(e){}qMark();if(logSet(b.dataset.q))start()});
+qMark();{const sb=$('[data-q="'+qSel+'"]'),qs=$('#qs');if(sb)qs.scrollLeft=Math.max(0,sb.offsetLeft-qs.clientWidth/2+sb.offsetWidth/2)}
 $('#ex').onchange=()=>prefill($('#ex').value);
 
 /* ---------- helpers ---------- */
