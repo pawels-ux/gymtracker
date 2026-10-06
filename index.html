@@ -38,6 +38,9 @@ td.n,th.n{text-align:right}
 #exPanel button{display:block;width:100%;text-align:left;padding:10px;background:none;border:0;border-bottom:1px solid var(--line);color:var(--ink);font:inherit;cursor:pointer}
 .tot{margin-left:auto;font-size:13px;color:var(--mut);white-space:nowrap}
 .sep{color:var(--mut)}
+.gn{flex:1 1 140px;min-width:0;padding:6px 8px;font-weight:600}.gw{width:76px;padding:6px 8px}.gh select{padding:6px}.gh label{white-space:nowrap}
+.up{color:#7ddc9a}.dn{color:var(--mut)}
+.vt td{font-size:14px}.vt small{display:block;color:var(--mut);font-size:12px}
 .foot{border-top:1px solid var(--line);margin-top:6px;padding-top:8px;text-align:right;font-size:14px;color:var(--mut)}
 .gh{flex-wrap:wrap}
 .sub{margin:2px 0 0 38px;font-size:13px;color:var(--mut);opacity:.75}
@@ -89,7 +92,12 @@ svg{width:100%;height:auto;display:block}
 <div class="row" style="justify-content:space-between"><b id="pYM"></b><input id="pDate" type="date" aria-label="Plan date" style="flex:none;width:auto"></div>
 <div id="plan"></div>
 <div class="row"><input id="pAdd" list="exl" placeholder="Add exercise to plan"><button class="b alt" id="pBtn">Add</button></div>
+<div class="row"><span class="mut">Copy plan to</span><input id="pCopyD" type="date" aria-label="Copy plan to date" style="flex:1"><button class="b alt" id="pCopy">Copy</button></div>
+<div class="mut" id="pMsg"></div>
 </div>
+
+<h2>Volume vs last time</h2>
+<div class="box" id="vol"></div>
 </section>
 
 <section id="hist">
@@ -183,13 +191,20 @@ function render(){renderNow();bkInfo();
  const exs=[...new Set(S.sets.map(s=>s.ex))].sort();
  $('#exl').innerHTML=[...new Set([...exs,...S.plan.map(p=>p.ex)])].sort().map(e=>`<option value="${esc(e)}">`).join('');
  const gs=groupSets(S.sets.filter(s=>s.date==today()).sort((a,b)=>(a.ts||0)-(b.ts||0))),sum=l=>l.reduce((a,s)=>a+(s.r||0),0),td=S.sets.filter(s=>s.date==today());
- $('#today').innerHTML=gs.length?gs.map((g,i)=>`<div class="grp" data-ids="${g.l.map(s=>s.id).join(',')}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><b>${i+1}. ${esc(g.s.ex)}${wpart(g.s)}</b><span class="tot">Reps: ${sum(g.l)} / Sets: ${g.l.length}</span></div><div class="chips">${g.l.map(s=>`<input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps">`).join('<span class="sep">×</span>')}</div></div>`).join('')+`<div class="foot">Today: Reps ${sum(td)} / Sets ${td.length}</div>`:'<div class="mut">No sets yet today. Pick an exercise and log your first set.</div>';
+ $('#today').innerHTML=gs.length?gs.map((g,i)=>`<div class="grp" data-ids="${g.l.map(s=>s.id).join(',')}"><div class="gh"><span class="grip" title="Drag to reorder" aria-label="Drag to reorder">⠿</span><span class="mut">${i+1}.</span><input class="gn" data-gf="ex" list="exl" value="${esc(g.s.ex)}" aria-label="Exercise name"><input class="gw" data-gf="w" type="number" step="0.5" min="0" inputmode="decimal" value="${sv(g.s)||''}" placeholder="wt" aria-label="Weight"><select data-gf="u" aria-label="Unit"><option ${g.s.u=='lb'?'':'selected'}>kg</option><option ${g.s.u=='lb'?'selected':''}>lb</option></select><label class="mut"><input type="checkbox" data-gf="bwm" ${g.s.bwm?'checked':''}> BW</label><span class="tot">Reps: ${sum(g.l)} / Sets: ${g.l.length}</span></div><div class="chips">${g.l.map(s=>`<input class="re" type="number" min="0" inputmode="numeric" value="${s.r}" data-rep="${s.id}" aria-label="Reps">`).join('<span class="sep">×</span>')}</div></div>`).join('')+`<div class="foot">Today: Reps ${sum(td)} / Sets ${td.length}</div>`:'<div class="mut">No sets yet today. Pick an exercise and log your first set.</div>';
  const upd=()=>{$$('#today .grp').forEach(gp=>{const ss=gp.dataset.ids.split(',').map(id=>S.sets.find(x=>x.id==id)).filter(Boolean);gp.querySelector('.tot').textContent='Reps: '+sum(ss)+' / Sets: '+ss.length});const f=$('#today .foot'),all=S.sets.filter(s=>s.date==today());if(f)f.textContent='Today: Reps '+sum(all)+' / Sets '+all.length};
+ $$('#today .grp').forEach(gp=>{const ids=gp.dataset.ids.split(',');
+  gp.querySelectorAll('[data-gf]').forEach(i=>{if(i.type!='checkbox'&&i.tagName!='SELECT')i.onfocus=()=>i.select();i.onchange=()=>{
+   const l=ids.map(id=>S.sets.find(x=>x.id==id)).filter(Boolean),f=i.dataset.gf,q=k=>gp.querySelector('[data-gf='+k+']');if(!l.length)return;
+   if(f=='ex'){const v=i.value.trim();if(!v){i.value=l[0].ex;return}const k=S.sets.find(s=>s.ex.toLowerCase()==v.toLowerCase());l.forEach(s=>s.ex=k?k.ex:v)}
+   else if(f=='bwm'){if(i.checked)l.forEach(s=>{s.bwm=true;s.w=0;s.u='kg';delete s.wl});else l.forEach(s=>s.bwm=false)}
+   else{const v=parseFloat(q('w').value)||0,u=q('u').value;l.forEach(s=>{s.u=u;if(u=='lb'){s.wl=v;s.w=v*LB}else{s.w=v;delete s.wl}if(v>0)s.bwm=false})}
+   save();render()}});});
  $$('[data-rep]').forEach(i=>{i.onfocus=()=>i.select();i.onchange=()=>{const s=S.sets.find(x=>x.id==i.dataset.rep);if(!s)return;
   if(i.value.trim()===''){if(confirm('Delete this set?')){S.sets=S.sets.filter(x=>x.id!=s.id);save();render()}else i.value=s.r;return}
-  const v=parseFloat(i.value);if(isNaN(v)||v<0){i.value=s.r;return}s.r=v;save();upd();renderNow()}});
+  const v=parseFloat(i.value);if(isNaN(v)||v<0){i.value=s.r;return}s.r=v;save();upd();renderNow();renderVol()}});
  sortable($('#today'),'.grp',els=>{const all=S.sets.filter(s=>s.date==today()),t0=Math.min(...all.map(s=>s.ts||0).filter(Boolean),Date.now());let n=0;els.forEach(e=>e.dataset.ids.split(',').forEach(id=>{const s=S.sets.find(x=>x.id==id);if(s)s.ts=t0+(n++)}));save();render()});
- renderPlan();
+ renderPlan();renderVol();
  if($('#sum').classList.contains('on'))renderSum(exs);
  if($('#hist').classList.contains('on'))renderHist();
  $('#bl').innerHTML=[...S.bw].sort((a,c)=>a.date<c.date?1:-1).map(b=>`<tr><td>${b.date}</td><td class="n">${b.kg} kg</td><td class="n"><button class="x" data-bd="${b.id}" aria-label="Delete weigh-in">×</button></td></tr>`).join('')||'<tr><td class="mut">No weigh-ins yet.</td></tr>';
@@ -241,12 +256,12 @@ $('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileRe
 let hMonth=null,hDesc=true,hEdit=false,hFocus=null;
 const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const sfx=n=>{const a=['th','st','nd','rd'],v=n%100;return n+(a[(v-20)%10]||a[v]||a[0])};
-const mdates=m=>[...new Set([...S.sets,...S.runs].map(x=>x.date).filter(d=>d.slice(0,7)==m))].sort();
+const mdates=m=>[...new Set([...S.sets,...S.runs,...S.plan].map(x=>x.date).filter(d=>d.slice(0,7)==m))].sort();
 const hClean=()=>{S.sets=S.sets.filter(s=>s.ex&&s.r!=null);S.runs=S.runs.filter(r=>r.km>0);save()};
 const addS=d=>{const l=S.sets.filter(s=>s.date==d).sort((a,b)=>(a.ts||0)-(b.ts||0)).pop(),id=uid();S.sets.push({id,date:d,ex:l?l.ex:'',w:l?l.w:0,r:null,bwm:l?!!l.bwm:false,ts:Date.now()});save();hMonth=d.slice(0,7);hFocus={id,f:l?'r':'ex'};renderHist()};
 const addR=d=>{S.runs.push({id:uid(),date:d,km:0,ts:Date.now()});save();hMonth=d.slice(0,7);renderHist()};
 function renderHist(){
- const ms=[...new Set([...S.sets,...S.runs].map(s=>s.date.slice(0,7)))].sort(),yrs=[...new Set(ms.map(m=>m.slice(0,4)))].sort().reverse();
+ const ms=[...new Set([...S.sets,...S.runs,...S.plan].map(s=>s.date.slice(0,7)))].sort(),yrs=[...new Set(ms.map(m=>m.slice(0,4)))].sort().reverse();
  const sel=$('#hYr'),cur=sel.value||'all';
  sel.innerHTML='<option value="all">All years</option>'+yrs.map(y=>`<option ${y==cur?'selected':''}>${y}</option>`).join('');
  $('#hOrd').textContent=hDesc?'Newest first':'Oldest first';
@@ -256,14 +271,15 @@ function renderHist(){
   let h=`<div class="row"><button class="b alt" id="hBack">Back</button><b style="flex:1">${MN[+hMonth.slice(5)-1]} ${hMonth.slice(0,4)}</b><button class="b ${hEdit?'acc':'alt'}" id="hEd">${hEdit?'Done':'Edit'}</button></div>`;
   mdates(hMonth).forEach(d=>{
    const ds=S.sets.filter(s=>s.date==d).sort((a,b)=>(a.ts||0)-(b.ts||0)),rs=S.runs.filter(r=>r.date==d);
-   const bd=S.bw.filter(x=>x.date==d).pop();
+   const bd=S.bw.filter(x=>x.date==d).pop(),pl=S.plan.filter(p=>p.date==d).sort((a,b)=>(a.o||0)-(b.o||0)),
+    pln=pl.length?`<div class="ln mut">Plan: ${pl.map(p=>(ds.some(s=>s.ex.toLowerCase()==p.ex.toLowerCase())?'✓ ':'')+esc(p.ex)).join(', ')}</div>`:'';
    h+=`<div class="day">--- ${sfx(+d.slice(8))} ---${hEdit?` <input data-bwd="${d}" type="number" step="0.1" min="0" value="${bd?bd.kg:''}" placeholder="kg" style="width:84px;padding:4px 6px" aria-label="Bodyweight kg"> kg`:(bd?` (${bd.kg} kg)`:'')}</div><div class="box">`;
    if(!hEdit){
     const g=[],idx={};
     ds.forEach(s=>{const k=s.ex+'|'+sv(s)+(s.u||'kg')+'|'+!!s.bwm;if(!(k in idx)){idx[k]=g.length;g.push({s,r:[]})}g[idx[k]].r.push(s.r)});
-    h+=g.map((x,i)=>`<div class="ln">${i+1}. ${esc(x.s.ex)}${wpart(x.s)}: <span class="mut">${x.r.join(', ')}</span></div>`).join('')+rs.map((r,i)=>`<div class="ln">${g.length+i+1}. Run ${r.km.toFixed(2)}km</div>`).join('');
+    h+=g.map((x,i)=>`<div class="ln">${i+1}. ${esc(x.s.ex)}${wpart(x.s)}: <span class="mut">${x.r.join(', ')}</span></div>`).join('')+rs.map((r,i)=>`<div class="ln">${g.length+i+1}. Run ${r.km.toFixed(2)}km</div>`).join('')+pln;
    }else{
-    h+=ds.map(s=>`<div class="row" data-sid="${s.id}"><input data-f="ex" list="exl" value="${esc(s.ex)}" placeholder="Exercise" style="flex:2 1 120px"><input data-f="w" type="number" step="0.5" min="0" value="${sv(s)||''}" placeholder="weight" style="flex:1 1 60px"><select data-f="u" aria-label="Unit"><option ${s.u=='lb'?'':'selected'}>kg</option><option ${s.u=='lb'?'selected':''}>lb</option></select><input data-f="r" type="number" min="0" value="${s.r??''}" placeholder="reps" style="flex:1 1 60px"><label class="mut"><input type="checkbox" data-f="bwm" style="flex:none" ${s.bwm?'checked':''}> BW</label><button class="x" data-dels="${s.id}" aria-label="Delete set">×</button></div>`).join('')
+    h+=pln+ds.map(s=>`<div class="row" data-sid="${s.id}"><input data-f="ex" list="exl" value="${esc(s.ex)}" placeholder="Exercise" style="flex:2 1 120px"><input data-f="w" type="number" step="0.5" min="0" value="${sv(s)||''}" placeholder="weight" style="flex:1 1 60px"><select data-f="u" aria-label="Unit"><option ${s.u=='lb'?'':'selected'}>kg</option><option ${s.u=='lb'?'selected':''}>lb</option></select><input data-f="r" type="number" min="0" value="${s.r??''}" placeholder="reps" style="flex:1 1 60px"><label class="mut"><input type="checkbox" data-f="bwm" style="flex:none" ${s.bwm?'checked':''}> BW</label><button class="x" data-dels="${s.id}" aria-label="Delete set">×</button></div>`).join('')
      +rs.map(r=>`<div class="row" data-rid="${r.id}"><span style="flex:2 1 120px">Run</span><input data-f="km" type="number" step="0.01" min="0" value="${r.km.toFixed(2)}" style="flex:1 1 90px"><span class="mut">km</span><button class="x" data-delr="${r.id}" aria-label="Delete run">×</button></div>`).join('')
      +`<div class="row"><button class="b alt" data-as="${d}">+ Set</button><button class="b alt" data-ar="${d}">+ Run</button></div>`;
    }
@@ -292,7 +308,7 @@ function renderHist(){
  if(!ms.length)h+='<p class="mut">No workouts or runs yet. Log a set on the Log tab, or add a run above.</p>';
  (hDesc?yrs:[...yrs].reverse()).filter(y=>sel.value=='all'||y==sel.value).forEach(y=>{
   const list=ms.filter(m=>m.slice(0,4)==y);if(hDesc)list.reverse();
-  h+=`<h2>${y}</h2>`+list.map(m=>{const sets=S.sets.filter(s=>s.date.slice(0,7)==m),km=S.runs.filter(r=>r.date.slice(0,7)==m).reduce((a,r)=>a+r.km,0);return `<button class="b alt mb" data-m="${m}"><span>${MN[+m.slice(5)-1]}</span><span class="mut">${mdates(m).length} days, ${sets.length} sets${km?', '+km.toFixed(2)+' km':''}</span></button>`}).join('');
+  h+=`<h2>${y}</h2>`+list.map(m=>{const act=new Set([...S.sets,...S.runs].map(x=>x.date)),dl=mdates(m),pd=dl.filter(d=>!act.has(d)).length,sets=S.sets.filter(s=>s.date.slice(0,7)==m),km=S.runs.filter(r=>r.date.slice(0,7)==m).reduce((a,r)=>a+r.km,0);return `<button class="b alt mb" data-m="${m}"><span>${MN[+m.slice(5)-1]}</span><span class="mut">${dl.length-pd} days, ${sets.length} sets${km?', '+km.toFixed(2)+' km':''}${pd?', '+pd+' planned':''}</span></button>`}).join('');
  });
  out.innerHTML=h;
  $$('[data-m]').forEach(b=>b.onclick=()=>{hMonth=b.dataset.m;hEdit=false;renderHist();scrollTo(0,0)});
@@ -352,7 +368,27 @@ function renderPlan(){
  sortable($('#plan'),'.grp',els=>{els.forEach((e,i)=>{const p=S.plan.find(x=>x.id==e.dataset.pid);if(p)p.o=i});save();renderPlan()})}
 function addPlan(){const v=$('#pAdd').value.trim();if(!v)return;const d=$('#pDate').value||today(),k=S.sets.find(s=>s.ex.toLowerCase()==v.toLowerCase());
  S.plan.push({id:uid(),date:d,ex:k?k.ex:v,o:Math.max(-1,...S.plan.filter(p=>p.date==d).map(p=>p.o||0))+1});save();$('#pAdd').value='';render()}
-$('#pBtn').onclick=addPlan;$('#pAdd').addEventListener('keydown',e=>{if(e.key=='Enter')addPlan()});$('#pDate').onchange=renderPlan;$('#pDate').value=today();
+const addDays=(d,n)=>{const x=new Date(d+'T12:00:00');x.setDate(x.getDate()+n);return x.toLocaleDateString('sv')};
+const syncCopy=()=>{$('#pCopyD').value=addDays($('#pDate').value||today(),1);$('#pMsg').textContent=''};
+$('#pCopy').onclick=()=>{const from=$('#pDate').value||today(),to=$('#pCopyD').value,m=$('#pMsg');if(!to)return;if(to==from){m.textContent='Pick a different date to copy to.';return}
+ const src=S.plan.filter(p=>p.date==from).sort((a,b)=>(a.o||0)-(b.o||0)),have=S.plan.filter(p=>p.date==to);let o=Math.max(-1,...have.map(p=>p.o||0))+1,n=0;
+ if(!src.length){m.textContent='Nothing planned on this day to copy.';return}
+ src.forEach(p=>{if(have.some(h=>h.ex.toLowerCase()==p.ex.toLowerCase()))return;S.plan.push({id:uid(),date:to,ex:p.ex,o:o++});n++});save();
+ const lbl=new Date(to+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'}),sk=src.length-n;
+ render();m.textContent='Copied '+n+' exercise'+(n==1?'':'s')+' to '+lbl+(sk?' ('+sk+' already planned there)':'')+'.'};
+function renderVol(){
+ const el=$('#vol'),t=today(),vol=l=>l.reduce((a,s)=>a+load(s)*(s.r||0),0),f=v=>Math.round(v).toLocaleString('en-GB')+' kg',names=[];
+ S.sets.filter(s=>s.date==t).sort((a,b)=>(a.ts||0)-(b.ts||0)).forEach(s=>{if(!names.some(n=>n.toLowerCase()==s.ex.toLowerCase()))names.push(s.ex)});
+ if(!names.length){el.innerHTML='<div class="mut">Log a set to compare today with your last workout.</div>';return}
+ let tt=0,tl=0,nc=0;
+ const rows=names.map(n=>{const k=n.toLowerCase(),cv=vol(S.sets.filter(s=>s.date==t&&s.ex.toLowerCase()==k)),prev=S.sets.filter(s=>s.date<t&&s.ex.toLowerCase()==k),ld=prev.map(s=>s.date).sort().pop();
+  if(!ld)return `<tr><td>${esc(n)}</td><td class="n">${f(cv)}</td><td class="n mut">first time</td><td></td></tr>`;
+  const pv=vol(prev.filter(s=>s.date==ld)),d=cv-pv,dt=new Date(ld+'T12:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:ld.slice(0,4)==t.slice(0,4)?undefined:'numeric'});
+  tt+=cv;tl+=pv;nc++;
+  return `<tr><td>${esc(n)}</td><td class="n">${f(cv)}</td><td class="n">${f(pv)}<small>${dt}</small></td><td class="n ${d>0?'up':'dn'}">${d>=0?'+':'−'}${f(Math.abs(d))}</td></tr>`}).join('');
+ const dd=tt-tl,tot=nc>1?`<tr><td><b>Total</b><small>exercises with a last time</small></td><td class="n"><b>${f(tt)}</b></td><td class="n">${f(tl)}</td><td class="n ${dd>0?'up':'dn'}"><b>${dd>=0?'+':'−'}${f(Math.abs(dd))}</b></td></tr>`:'';
+ el.innerHTML=`<table class="vt"><tr><th>Exercise</th><th class="n">Today</th><th class="n">Last time</th><th class="n">Change</th></tr>${rows}${tot}</table><div class="mut" style="margin-top:6px;font-size:13px">Volume = weight × reps. Bodyweight sets use your latest weigh-in.${!S.bw.length&&S.sets.some(s=>s.bwm)?' Add a weigh-in on the Bodyweight tab so bodyweight sets count.':''}</div>`}
+$('#pBtn').onclick=addPlan;$('#pAdd').addEventListener('keydown',e=>{if(e.key=='Enter')addPlan()});$('#pDate').onchange=()=>{renderPlan();syncCopy()};$('#pDate').value=today();syncCopy();
 /* custom exercise dropdown: always lists every exercise, whatever is typed */
 function exNames(){const m={};S.sets.forEach(s=>{const v=(s.date||'')+String(s.ts||0).padStart(15,'0');if(!m[s.ex]||v>m[s.ex])m[s.ex]=v});S.plan.forEach(p=>{if(!(p.ex in m))m[p.ex]=''});return Object.keys(m).sort((a,b)=>m[a]<m[b]?1:m[a]>m[b]?-1:a.localeCompare(b))}
 function closeEx(){$('#exPanel').hidden=true;$('#exBtn').setAttribute('aria-expanded','false')}
